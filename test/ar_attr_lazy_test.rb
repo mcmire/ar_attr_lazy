@@ -2,29 +2,59 @@ require 'helper'
 
 ActiveRecord::Migration.suppress_messages do
   ActiveRecord::Schema.define do
+    create_table :accounts do |t|
+      t.string :name, :null => false
+    end
+    
+    create_table :users do |t|
+      t.integer :account_id, :null => false
+      t.string :login, :null => false
+      t.string :password, :null => false
+      t.string :email, :null => false
+      t.string :name, :null => false
+      t.text :bio, :null => false
+    end
+    
     create_table :posts do |t|
+      t.integer :author_id, :null => false
       t.string :title, :null => false
       t.string :permalink, :null => false
-      t.text :body
-      t.text :summary
+      t.text :body, :null => false
+      t.text :summary, :null => false
     end
     
     create_table :comments do |t|
       t.integer :post_id, :null => false
       t.string :name, :null => false
-      t.text :body
+      t.text :body, :null => false
     end
     
-    create_table :users do |t|
-      t.string :login, :null => false
-      t.string :password, :null => false
-      t.string :email, :null => false
+    create_table :tags do |t|
+      t.string :name, :null => false
+      t.text :description
+    end
+    
+    create_table :posts_tags do |t|
+      t.integer :post_id, :null => false
+      t.integer :tag_id, :null => false
     end
   end
 end
 
+class Account < ActiveRecord::Base
+  has_one :user
+end
+
+class User < ActiveRecord::Base
+  has_many :posts, :foreign_key => "author_id"
+  belongs_to :account
+  attr_lazy :bio
+end
+
 class Post < ActiveRecord::Base
   has_many :comments
+  belongs_to :author, :class_name => "User"
+  has_and_belongs_to_many :tags
   attr_lazy :body, :summary
 end
 
@@ -33,10 +63,22 @@ class Comment < ActiveRecord::Base
   attr_lazy :body
 end
 
-class User < ActiveRecord::Base
+class Tag < ActiveRecord::Base
+  has_and_belongs_to_many :posts
+  attr_lazy :description
 end
 
-post = Post.create!(
+account = Account.create!(
+  :name => "Joe's Account"
+)
+user = account.create_user(
+  :name => "Joe Bloe",
+  :login => "joe",
+  :password => "secret",
+  :email => "joe@bloe.com",
+  :bio => "It's hip to be square!"
+)
+post = user.posts.create!(
   :title => "The Best Post",
   :permalink => 'the-best-post',
   :body => "This is the best post, ya hear?? Word.",
@@ -46,11 +88,6 @@ post.comments.create!(
   :name => "Joe Bloe",
   :body => "This here is what we call a comment"
 )
-User.create!(
-  :login => "joe",
-  :password => "secret",
-  :email => "joe@bloe.com"
-)
 
 Protest.context "ar_attr_lazy" do
   def regex(str)
@@ -58,87 +95,110 @@ Protest.context "ar_attr_lazy" do
   end
   
   # what about :selects in default_scope?
-  # what about STI?
+  # what about :selects in the association definition itself?
+  # what about STI? (do the lazy attributes carry over?)
   
   context "when model has lazy attributes" do
     context "with no associations involved" do
-      it "doing a regular find selects non-lazy attributes only" do
-        lambda { Post.first }.should query(
-          %|SELECT "posts"."id","posts"."title","posts"."permalink" FROM "posts" LIMIT 1|
+      test "find selects non-lazy attributes only by default" do
+        lambda { Post.find(:first) }.should query(
+          %|SELECT "posts"."id","posts"."author_id","posts"."title","posts"."permalink" FROM "posts" LIMIT 1|
         )
       end
-      it "accessing a lazy attribute selects that attribute only" do
-        post = Post.first
+      test "accessing a lazy attribute selects that attribute only" do
+        post = Post.find(:first)
         lambda { post.body }.should query(
           %|SELECT "posts"."id","posts"."body" FROM "posts" WHERE ("posts"."id" = 1)|
         )
       end
-      it "honors an explicit select option when doing a regular find" do
-        lambda { Post.first(:select => "title, permalink") }.should query(
+      test "find still honors an explicit select option" do
+        lambda { Post.find(:first, :select => "title, permalink") }.should query(
           %|SELECT title, permalink FROM "posts" LIMIT 1|
         )
       end
-      it "honors a select option in a parent scope" do
-        lambda { Post.scoped(:select => "title, permalink").first }.should query(
+      test "find still honors a select option in a parent scope" do
+        lambda { Post.scoped(:select => "title, permalink").find(:first) }.should query(
           %|SELECT title, permalink FROM "posts" LIMIT 1|
         )
       end
     end
-    #context "accessing a has_many association"
-    #context "accessing a belongs_to association"
-    #context "accessing a has_one association"
-    #context "accessing a has_and_belongs_to_many association"
-    context "eager loading a has_many association (association preloading)" do
-      it "doing a regular find selects non-lazy attributes only" do
-        lambda { Post.first(:include => :comments).comments.first }.should query(
-          %|SELECT "comments"."id","comments"."post_id","comments"."name" FROM "comments" WHERE ("comments".post_id = 1)|
+    
+    context "accessing a has_many association" do
+      test "find selects non-lazy attributes by default" do
+        post = Post.first
+        lambda { post.comments.find(:first) }.should query(
+          %|SELECT "comments"."id","comments"."post_id","comments"."name" FROM "comments" WHERE ("comments".post_id = 1) LIMIT 1|
         )
       end
-      it "accessing a lazy attribute selects that attribute only" do
-        lambda { Post.first(:include => :comments).comments.first.body }.should query(
-          %|SELECT "comments"."id","comments"."body" FROM "comments" WHERE ("comments"."id" = 1)|
-        )
-      end
-      it "honors an explicit select option when doing a regular find" do
-        lambda { Post.first(:include => :comments).comments.first(:select => "name") }.should query(
+      test "find still honors an explicit select option" do
+        post = Post.first
+        lambda { post.comments.find(:first, :select => "name") }.should query(
           %|SELECT name FROM "comments" WHERE ("comments".post_id = 1) LIMIT 1|
+        )
+      end
+    end
+    
+    context "accessing a belongs_to association" do
+      test "find selects non-lazy attributes by default" do
+        post = Post.first
+        lambda { post.author }.should query(
+          %|SELECT "users"."id","users"."account_id","users"."login","users"."password","users"."email","users"."name" FROM "users" WHERE ("users"."id" = 1)|
+        )
+      end
+    end
+    
+    context "accessing a has_one association" do
+      test "find selects non-lazy attributes by default" do
+        account = Account.first
+        lambda { account.user }.should query(
+          %|SELECT "users"."id","users"."account_id","users"."login","users"."password","users"."email","users"."name" FROM "users" WHERE ("users".account_id = 1) LIMIT 1|
+        )
+      end
+    end
+    
+    context "accessing a has_and_belongs_to_many association" do
+      test "find selects non-lazy attributes by default" do
+        post = Post.first
+        lambda { post.tags.find(:all) }.should query(
+          %|SELECT "tags"."id","tags"."name" FROM "tags" INNER JOIN "posts_tags" ON "tags".id = "posts_tags".tag_id WHERE ("posts_tags".post_id = 1 )|
+        )
+      end
+    end
+    
+    context "eager loading a has_many association (association preloading)" do
+      test "find selects non-lazy attributes by default" do
+        lambda { Post.find(:first, :include => :comments) }.should query(
+          %|SELECT "comments"."id","comments"."post_id","comments"."name" FROM "comments" WHERE ("comments".post_id = 1)|
         )
       end
     end
     context "eager loading a has_many association (table join)" do
-      it "doing a regular find selects non-lazy attributes only" do
-        lambda { Post.first(:include => :comments, :conditions => "comments.name = 'Joe Bloe'").comments.first }.should query(
-          regex(%|SELECT "posts"."id" AS t0_r0, "posts"."title" AS t0_r1, "posts"."permalink" AS t0_r2, "comments"."id" AS t1_r0, "comments"."post_id" AS t1_r1, "comments"."name" AS t1_r2 FROM "posts" LEFT OUTER JOIN "comments" ON comments.post_id = posts.id|)
-        )
-      end
-      it "accessing a lazy attribute selects that attribute only" do
-        lambda { Post.first(:include => :comments, :conditions => "comments.name = 'Joe Bloe'").comments.first.body }.should query(
-          regex(%|SELECT "comments"."id","comments"."body" FROM "comments" WHERE ("comments"."id" = 1)|)
-        )
-      end
-      it "honors an explicit select option when doing a regular find" do
-        lambda { Post.first(:include => :comments, :conditions => "comments.name = 'Joe Bloe'").comments.first(:select => "name") }.should query(
-          %|SELECT name FROM "comments" WHERE ("comments".post_id = 1) LIMIT 1|
+      test "find selects non-lazy attributes by default" do
+        lambda { Post.find(:first, :include => :comments, :conditions => "comments.name = 'Joe Bloe'") }.should query(
+          regex(%|SELECT "posts"."id" AS t0_r0, "posts"."author_id" AS t0_r1, "posts"."title" AS t0_r2, "posts"."permalink" AS t0_r3, "comments"."id" AS t1_r0, "comments"."post_id" AS t1_r1, "comments"."name" AS t1_r2 FROM "posts" LEFT OUTER JOIN "comments" ON comments.post_id = posts.id|)
         )
       end
     end
+    
     #context "eager loading a has_one association (association preloading)"
     #context "eager loading a has_one association (table join)"
+    
     #context "eager loading a belongs_to association (association preloading)"
     #context "eager loading a belongs_to association (table join)"
+    
     #context "eager loading a has_and_belongs_to_many association (association preloading)"
     #context "eager loading a has_and_belongs_to_many association (table join)"
   end
   context "when model doesn't have lazy attributes" do
-    it "doing a regular find selects all attributes" do
-      lambda { User.first }.should query(
-        %|SELECT * FROM "users" LIMIT 1|
+    test "find select all attributes by default" do
+      lambda { Account.find(:first) }.should query(
+        %|SELECT * FROM "accounts" LIMIT 1|
       )
     end
     it "accessing any one attribute doesn't do a query" do
-      user = User.first
-      lambda { user.login }.should_not query
+      account = Account.first
+      lambda { account.name }.should_not query
     end
-    #it "honors an explicit select option"
+    #it "honors an explicit select option" ?
   end
 end

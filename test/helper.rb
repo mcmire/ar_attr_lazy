@@ -35,4 +35,4 @@ end
 
 require 'matchers'
 
-require 'init'
+require 'mcmire/ar_attr_lazy'

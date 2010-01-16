@@ -1,1 +1,1 @@
-ActiveRecord::Base.class_eval { include Mcmire::AttrLazy }
+require 'mcmire/ar_attr_lazy'

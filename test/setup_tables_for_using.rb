@@ -41,25 +41,18 @@ ActiveRecord::Migration.suppress_messages do
       t.integer :post_id, :null => false
       t.integer :tag_id, :null => false
     end
+    
+    create_table :categories, :force => true do |t|
+      t.string :name, :null => false
+      t.text :description
+    end
+    
+    create_table :post_categories, :force => true do |t|
+      t.integer :post_id, :null => false
+      t.integer :category_id, :null => false
+    end
   end
 end
-
-# We have to put these models in a separate module and then mix that module into
-# our test case. Why? First, when we define a class, of course all we're doing is
-# setting a constant. And constants are looked up and defined in lexical scope.
-# Now, our test case is defined in a block. Even though this block gets
-# class_eval'ed within the new test case class, that doesn't matter because any
-# block by design can "see" its outer context (that makes it a closure).
-#
-# What this all means is that if we were to add our model classes straight in
-# the test case definition, then the constants that store the class instances
-# would be defined in the top-level context. This is not what we want since that
-# means doing the same thing in another test case would reopen those model classes
-# and screw things up.
-#
-# By placing the class definitions in a module, then we only have one top-level
-# constant to deal with. So as long as the module has a unique name we should be fine.
-#
 
 class Account < ActiveRecord::Base
   has_one :user
@@ -78,10 +71,25 @@ end
 class Post < ActiveRecord::Base
   has_many :comments
   has_many :comments_with_default_scope, :class_name => "CommentWithDefaultScope"
+  has_many :comments_with_select, :select => "name", :class_name => "Comment"
+  has_many :post_categories
+  has_many :categories, :through => :post_categories
+  has_many :categories_with_default_scope, :through => :post_categories,
+    :class_name => "CategoryWithDefaultScope",
+    :source => :post
+  has_many :categories_with_select, :through => :post_categories,
+    :select => "categories.name",
+    :class_name => "Category",
+    :source => :post
   belongs_to :author, :class_name => "User"
   has_and_belongs_to_many :tags
   has_and_belongs_to_many :tags_with_default_scope,
     :class_name => "TagWithDefaultScope",
+    :join_table => "posts_tags",
+    :association_foreign_key => "tag_id"
+  has_and_belongs_to_many :tags_with_select,
+    :select => "tags.name",
+    :class_name => "Tag",
     :join_table => "posts_tags",
     :association_foreign_key => "tag_id"
   attr_lazy :body, :summary
@@ -113,6 +121,23 @@ class TagWithDefaultScope < ActiveRecord::Base
   default_scope :select => "name"
 end
 
+class PostCategory < ActiveRecord::Base
+  belongs_to :post
+  belongs_to :category
+end
+class Category < ActiveRecord::Base
+  has_many :post_categories
+  has_many :posts, :through => :post_categories
+  attr_lazy :description
+end
+class CategoryWithDefaultScope < ActiveRecord::Base
+  set_table_name :categories
+  has_many :post_categories
+  has_many :posts, :through => :post_categories
+  attr_lazy :description
+  default_scope :select => "categories.name"
+end
+
 account = Account.create!(
   :name => "Joe's Account"
 )
@@ -136,9 +161,5 @@ Comment.create!(
   :name => "A douchebag",
   :body => "Your site suxx0rsss"
 )
-CommentWithDefaultScope.create!(
-  :post => post,
-  :name => "Some body",
-  :body => "once told me the world is gonna roll me"
-)
 post.tags << Tag.new(:name => "foo", :description => "The description and stuff")
+post.categories << Category.new(:name => "zing", :description => "Hey hey hey hey I don't like your girlfriend")

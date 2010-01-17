@@ -1,7 +1,5 @@
 require 'helper'
 
-# what about :selects in default_scope?
-# what about :selects in the association definition itself?
 # what about STI? (do the lazy attributes carry over?)
 # what about has_many :through or has_one :through?
 
@@ -69,6 +67,11 @@ Protest.context "for a model that doesn't have lazy attributes" do
         regex(%|SELECT name FROM "comments"|)
       )
     end
+    test "find still honors a select option in the association definition itself" do
+      lambda { @post.comments_with_select.find(:first) }.should query(
+        regex(%|SELECT name FROM "comments"|)
+      )
+    end
   end
   
   context "accessing a belongs_to association" do
@@ -113,6 +116,13 @@ Protest.context "for a model that doesn't have lazy attributes" do
       pending "this fails on Rails 2.3.4"
       lambda {
         @post.tags_with_default_scope.find(:all)
+      }.should query(
+        regex(%|SELECT tags.name FROM "tags"|)
+      )
+    end
+    test "find still honors a select option in the association definition itself" do
+      lambda {
+        @post.tags_with_select.find(:all)
       }.should query(
         regex(%|SELECT tags.name FROM "tags"|)
       )

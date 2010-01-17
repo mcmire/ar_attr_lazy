@@ -118,31 +118,37 @@ module MatchyMatchers
   # :call-seq:
   # response.should query
   # response.should query(expected)
+  # response.should query(expected1, expected2)
   # response.should query(expected) { |sql| ... }
   # response.should_not query
   # response.should_not query(expected)
+  # response.should_not query(expected1, expected2)
   #
-  # Accepts a Fixnum or a Regexp as argument.
+  # Accepts a Fixnum, a String, a Regexp, or an array of Strings or Regexps as arguments.
   #
   # With no args, matches if exactly 1 query is executed.
   # With a Fixnum arg, matches if the number of queries executed equals the given number.
   # With a Regexp arg, matches if any query is executed with the given pattern.
+  # With multiple args, matches if all given patterns are matched by all queries executed.
   #
   # Pass an optional block to perform extra verifications of the queries matched.
   # The argument of the block will receive an array of query strings that were executed.
   #
   # == Examples
   #
-  # lambda { @object.posts }.should query
+  # lambda { @object.posts }.should query # same as `should query(1)`
   # lambda { @object.valid? }.should query(0)
   # lambda { @object.save }.should query(3)
+  # lambda { @object.line_items }.should query("SELECT DISTINCT")
   # lambda { @object.line_items }.should query(/SELECT DISTINCT/)
+  # lambda { @object.line_items }.should query(/SELECT DISTINCT/, /SELECT COUNT\(\*\)/)
   # lambda { @object.line_items }.should query(1) { |sql| sql[0].should =~ /SELECT DISTINCT/ }
   #
-  # lambda { @object.posts }.should_not query
+  # lambda { @object.posts }.should_not query # same as `should_not query(1)`
   # lambda { @object.valid? }.should_not query(0)
   # lambda { @object.save }.should_not query(3)
   # lambda { @object.line_items }.should_not query(/SELECT DISTINCT/)
+  # lambda { @object.line_items }.should_not query(/SELECT DISTINCT/, /SELECT COUNT\(\*\)/)
   #
   def query(*expecteds, &block)
     ArQuery.new(self, expecteds, &block)

@@ -23,7 +23,6 @@ end
 
 ActiveRecord::Associations::BelongsToAssociation.class_eval do
   # Unfortunately we can't override this using a module...
-  #remove_method :find_target
   def find_target
     find_method = if @reflection.options[:primary_key]
                     "find_by_#{@reflection.options[:primary_key]}"
@@ -44,6 +43,16 @@ end
 
 ActiveRecord::Associations::HasAndBelongsToManyAssociation.class_eval do
   include Mcmire::ArAttrLazy::HabtmExt
+end
+
+ActiveRecord::Associations::HasManyThroughAssociation.class_eval do
+  # Unfortunately we can't override this using a module...
+  def construct_select(custom_select = nil)
+    distinct = "DISTINCT " if @reflection.options[:uniq]
+    default_select = @reflection.klass.unlazy_column_list if @reflection.klass.respond_to?(:unlazy_column_list)
+    default_select ||= "#{@reflection.quoted_table_name}.*"
+    selected = custom_select || @reflection.options[:select] || "#{distinct}#{default_select}"
+  end
 end
 
 ActiveRecord::AssociationPreload::ClassMethods.class_eval do

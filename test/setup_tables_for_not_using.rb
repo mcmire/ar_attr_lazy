@@ -44,22 +44,6 @@ ActiveRecord::Migration.suppress_messages do
   end
 end
 
-# We have to put these models in a separate module and then mix that module into
-# our test case. Why? First, when we define a class, of course all we're doing is
-# setting a constant. And constants are looked up and defined in lexical scope.
-# Now, our test case is defined in a block. Even though this block gets
-# class_eval'ed within the new test case class, that doesn't matter because any
-# block by design can "see" its outer context (that makes it a closure).
-#
-# What this all means is that if we were to add our model classes straight in
-# the test case definition, then the constants that store the class instances
-# would be defined in the top-level context. This is not what we want since that
-# means doing the same thing in another test case would reopen those model classes
-# and screw things up.
-#
-# By placing the class definitions in a module, then we only have one top-level
-# constant to deal with. So as long as the module has a unique name we should be fine.
-#
 class Account < ActiveRecord::Base
   has_one :user
 end
@@ -76,10 +60,16 @@ end
 class Post < ActiveRecord::Base
   has_many :comments
   has_many :comments_with_default_scope, :class_name => "CommentWithDefaultScope"
+  has_many :comments_with_select, :select => "name", :class_name => "Comment"
   belongs_to :author, :class_name => "User"
   has_and_belongs_to_many :tags
   has_and_belongs_to_many :tags_with_default_scope,
     :class_name => "TagWithDefaultScope",
+    :join_table => "posts_tags",
+    :association_foreign_key => "tag_id"
+  has_and_belongs_to_many :tags_with_select,
+    :select => "tags.name",
+    :class_name => "Tag",
     :join_table => "posts_tags",
     :association_foreign_key => "tag_id"
 end
@@ -128,10 +118,5 @@ Comment.create!(
   :post => post,
   :name => "A douchebag",
   :body => "Your site suxx0rsss"
-)
-CommentWithDefaultScope.create!(
-  :post => post,
-  :name => "Some body",
-  :body => "once told me the world is gonna roll me"
 )
 post.tags << Tag.new(:name => "foo", :description => "The description and stuff")

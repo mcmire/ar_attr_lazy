@@ -1,7 +1,6 @@
 require 'helper'
 
 # what about STI? (do the lazy attributes carry over?)
-# what about has_one :through?
 
 Protest.context "for a model that has lazy attributes" do
   global_setup do
@@ -289,7 +288,28 @@ Protest.context "for a model that has lazy attributes" do
     # can't test for a scope for the same reason
   end
   
-  # missing: has_many :through
+  context "eager loading a has_many :through association (association preloading)" do
+    test "find selects non-lazy attributes by default" do
+      lambda {
+        Post.find(:first, :include => :categories)
+      }.should query(
+        regex(%|SELECT "categories"."id","categories"."name" FROM "categories"|)
+      )
+    end
+    # can't test for an explicit select since that will force a table join
+    # can't test for a scope select since association preloading doesn't honor those
+  end
+  context "eager loading a has_many :through association (table join)" do
+    test "find selects non-lazy attributes by default" do
+      lambda {
+        Post.find(:first, :include => :categories, :conditions => "categories.name = 'zing'")
+      }.should query(
+        regex(%|SELECT "posts"."id" AS t0_r0, "posts"."author_id" AS t0_r1, "posts"."title" AS t0_r2, "posts"."permalink" AS t0_r3, "categories"."id" AS t1_r0, "categories"."name" AS t1_r1 FROM "posts"|)
+      )
+    end
+    # can't test for an explicit select since that clashes with the table join anyway
+    # can't test for a scope for the same reason
+  end
   
   context "eager loading a has_one :through association (association preloading)" do
     test "find selects non-lazy attributes by default" do

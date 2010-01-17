@@ -2,7 +2,9 @@ module Mcmire
   module ArAttrLazy
     module HabtmExt
       def self.included(includer)
-        includer.alias_method_chain :construct_find_options!, :attr_lazy
+        includer.instance_eval do
+          alias_method_chain :construct_find_options!, :attr_lazy
+        end
       end
     
       def construct_find_options_with_attr_lazy!(options)

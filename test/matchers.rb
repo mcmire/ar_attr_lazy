@@ -10,9 +10,10 @@ module MatchyMatchers
       @@recording_queries
     end
 
-    def initialize(test_case, expected, &block)
+    def initialize(test_case, expecteds, &block)
       @test_case = test_case
-      @expected = expected
+      @expecteds = expecteds
+      @expecteds = [1] if @expecteds.empty?
       @block = block
     end
 
@@ -24,15 +25,16 @@ module MatchyMatchers
 
       given_proc.call
 
-      if @expected.is_a?(Fixnum)
-        @actual = ArQuery.executed.length
-        @matched = (@actual == @expected)
+      if @expecteds[0].is_a?(Fixnum)
+        @expecteds = @expecteds[0]
+        @actuals = ArQuery.executed.length
+        @matched = (@actuals == @expecteds)
       else
         # assume that a block was not given
         # PATCH: accept multiple queries
-        @expected = Array(@expected)
-        @actual = @expected.map {|query| [query, ArQuery.executed.detect {|sql| query === sql }] }
-        @matched = @actual.all? {|e,a| a }
+        @expecteds = Array(@expecteds)
+        @actuals = @expecteds.map {|query| [query, ArQuery.executed.detect {|sql| query === sql }] }
+        @matched = @actuals.all? {|e,a| a }
       end
 
       eval_block if @block && @matched && !negative_expectation?
@@ -66,12 +68,12 @@ module MatchyMatchers
     def failure_message_for_should
       if @eval_error
         @eval_error.message
-      elsif @expected.is_a?(Fixnum)
-        "expected #{@expected} to be executed, when in fact #{@actual} were"
+      elsif @expecteds.is_a?(Fixnum)
+        "expected #{@expecteds} to be executed, when in fact #{@actuals} were"
       else
         # PATCH: better error message
         msg = ""
-        @actual.select {|e,a| !a }.each do |expected, _|
+        @actuals.select {|e,a| !a }.each do |expected, _|
           msg << "expected a query with pattern #{expected.inspect} to be executed, but it wasn't\n"
         end
         msg << "All queries executed:\n"
@@ -83,12 +85,12 @@ module MatchyMatchers
     end
 
     def failure_message_for_should_not
-      if @expected.is_a?(Fixnum)
-        "did not expect #{@expected} queries to be executed, but they were"
+      if @expecteds.is_a?(Fixnum)
+        "did not expect #{@expecteds} queries to be executed, but they were"
       else
         # PATCH: better error message
         msg = ""
-        @actual.select {|e,a| a }.each do |_, actual|
+        @actuals.select {|e,a| a }.each do |_, actual|
           msg << "expected a query with pattern #{actual.inspect} not to be executed, but it was\n"
         end
         msg << "All queries executed:\n"
@@ -100,10 +102,10 @@ module MatchyMatchers
     end
 
     #def description
-    #  if @expected.is_a?(Fixnum)
-    #    @expected == 1 ? "execute 1 query" : "execute #{@expected} queries"
+    #  if @expecteds.is_a?(Fixnum)
+    #    @expecteds == 1 ? "execute 1 query" : "execute #{@expecteds} queries"
     #  else
-    #    "execute query with pattern #{@expected.inspect}"
+    #    "execute query with pattern #{@expecteds.inspect}"
     #  end
     #end
 
@@ -142,8 +144,8 @@ module MatchyMatchers
   # lambda { @object.save }.should_not query(3)
   # lambda { @object.line_items }.should_not query(/SELECT DISTINCT/)
   #
-  def query(expected = 1, &block)
-    ArQuery.new(self, expected, &block)
+  def query(*expecteds, &block)
+    ArQuery.new(self, expecteds, &block)
   end
   
   unless defined?(IGNORED_SQL)

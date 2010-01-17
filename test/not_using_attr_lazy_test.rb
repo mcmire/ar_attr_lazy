@@ -5,9 +5,9 @@ require 'helper'
 # what about STI? (do the lazy attributes carry over?)
 # what about has_many :through or has_one :through?
 
-Protest.context "for a model that has lazy attributes" do
+Protest.context "for a model that doesn't have lazy attributes" do
   global_setup do
-    require 'setup_tables_for_using'
+    require 'setup_tables_for_not_using'
   end
   
   global_teardown do
@@ -21,33 +21,25 @@ Protest.context "for a model that has lazy attributes" do
   end
   
   context "with no associations involved" do
-    test "find selects non-lazy attributes only by default" do
-      lambda { Post.find(:first) }.should_not query(%r{"posts"\."(body|summary)"})
+    test "find selects all attributes by default" do
+      lambda { Account.find(:first) }.should query(regex(%|SELECT * FROM "accounts"|))
     end
-    test "accessing a lazy attribute selects that attribute only" do
-      post = Post.find(:first)
-      lambda { post.body }.should query(
-        regex(%|SELECT "posts"."id","posts"."body" FROM "posts"|)
-      )
+    test "accessing any one attribute doesn't do a query" do
+      account = Account.first
+      lambda { account.name }.should_not query
     end
     test "find still honors an explicit select option" do
-      lambda { Post.find(:first, :select => "title, permalink") }.should query(
-        regex(%|SELECT title, permalink FROM "posts"|)
-      )
+      lambda { Account.find(:first, :select => "name") }.should query(regex(%|SELECT name FROM "accounts"|))
     end
     test "find still honors a select option in a parent scope" do
       lambda {
-        Post.send(:with_scope, :find => {:select => "title, permalink"}) do
-          Post.find(:first)
+        Account.send(:with_scope, :find => {:select => "name"}) do
+          Account.find(:first)
         end
-      }.should query(
-        regex(%|SELECT title, permalink FROM "posts"|)
-      )
+      }.should query(regex(%|SELECT name FROM "accounts"|))
     end
     test "find still honors a select option in a default scope" do
-      lambda { PostWithDefaultScope.find(:first) }.should query(
-        regex(%|SELECT title FROM "posts"|)
-      )
+      lambda { AccountWithDefaultScope.find(:first) }.should query(regex(%|SELECT name FROM "accounts"|))
     end
   end
   
@@ -55,8 +47,8 @@ Protest.context "for a model that has lazy attributes" do
     before do
       @post = Post.first
     end
-    test "find selects non-lazy attributes by default" do
-      lambda { @post.comments.find(:first) }.should_not query(%r{"comments"\."body"})
+    test "find selects all attributes by default" do
+      lambda { @post.comments.find(:first) }.should query(regex(%|SELECT * FROM "comments"|))
     end
     test "find still honors an explicit select option" do
       lambda { @post.comments.find(:first, :select => "name") }.should query(
@@ -80,17 +72,17 @@ Protest.context "for a model that has lazy attributes" do
   end
   
   context "accessing a belongs_to association" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       post = Post.first
-      lambda { post.author }.should_not query(%r{"users"\."bio"})
+      lambda { post.author }.should query(regex(%|SELECT * FROM "users"|))
     end
     # can't do a find on a belongs_to, so no testing needed for that
   end
   
   context "accessing a has_one association" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       account = Account.first
-      lambda { account.user }.should_not query(%r{"users"\."bio"})
+      lambda { account.user }.should query(regex(%|SELECT * FROM "users"|))
     end
     # can't do a find on a has_one, so no testing needed for that
   end
@@ -99,8 +91,8 @@ Protest.context "for a model that has lazy attributes" do
     before do
       @post = Post.first
     end
-    test "find selects non-lazy attributes by default" do
-      lambda { @post.tags.find(:all) }.should_not query(%r{"tags"\."description"})
+    test "find selects all attributes by default" do
+      lambda { @post.tags.find(:all) }.should query(regex(%|SELECT * FROM "tags"|))
     end
     test "find still honors an explicit select option" do
       lambda { @post.tags.find(:all, :select => "tags.name") }.should query(
@@ -128,74 +120,74 @@ Protest.context "for a model that has lazy attributes" do
   end
   
   context "eager loading a has_many association (association preloading)" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       lambda {
         Post.find(:first, :include => :comments)
-      }.should_not query(%r{"posts"\."body"|"comments"\."body"})
+      }.should query(regex(%|SELECT * FROM "posts"|), regex(%|SELECT "comments".* FROM "comments"|))
     end
     # can't test for an explicit select since that will force a table join
     # can't test for a scope select since association preloading doesn't honor those
   end
   context "eager loading a has_many association (table join)" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       lambda {
         Post.find(:first, :include => :comments, :conditions => "comments.name = 'A douchebag'")
-      }.should_not query(%r{"posts"\."body"|"comments"\."body"})
+      }.should query(%r{"posts"\."body"}, %r{"comments"\."body"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
     # can't test for a scope for the same reason
   end
   
   context "eager loading a has_one association (association preloading)" do
-    test "find selects non-lazy attributes by default" do
-      lambda { Account.find(:first, :include => :user) }.should_not query(%r{"users"\."bio"})
+    test "find selects all attributes by default" do
+      lambda { Account.find(:first, :include => :user) }.should query(regex(%|SELECT "users".* FROM "users"|))
     end
     # can't test for an explicit select since that will force a table join
     # can't test for a scope select since association preloading doesn't honor those
   end
   context "eager loading a has_one association (table join)" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       lambda {
         Account.find(:first, :include => :user, :conditions => "users.name = 'Joe Bloe'")
-      }.should_not query(%r{"users"\."bio"})
+      }.should query(%r{"users"\."bio"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
     # can't test for a scope for the same reason
   end
   
   context "eager loading a belongs_to association (association preloading)" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       lambda {
         Post.find(:first, :include => :author)
-      }.should_not query(%r{"posts"\."(body|summary)"|"users"\."bio"})
+      }.should query(regex(%|SELECT * FROM "posts"|))
     end
     # can't test for an explicit select since that will force a table join
     # can't test for a scope select since association preloading doesn't honor those
   end
   context "eager loading a belongs_to association (table join)" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       lambda {
         Post.find(:first, :include => :author, :conditions => "users.name = 'Joe Bloe'")
-      }.should_not query(%r{"posts"\."(body|summary)"|"users"\."bio"})
+      }.should query(%r{"posts"\."(body|summary)"}, %r{"users"\."bio"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
     # can't test for a scope for the same reason
   end
   
   context "eager loading a has_and_belongs_to_many association (association preloading)" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       lambda {
         Post.find(:first, :include => :tags)
-      }.should_not query(%r{"posts"\."(body|summary)"|"tags"\."description"})
+      }.should query(regex(%|SELECT * FROM "posts"|), regex(%|SELECT "tags".*, t0.post_id as the_parent_record_id FROM "tags"|))
     end
     # can't test for an explicit select since that will force a table join
     # can't test for a scope select since association preloading doesn't honor those
   end
   context "eager loading a has_and_belongs_to_many association (table join)" do
-    test "find selects non-lazy attributes by default" do
+    test "find selects all attributes by default" do
       lambda {
         Post.find(:first, :include => :tags, :conditions => "tags.name = 'foo'")
-      }.should_not query(%r{"posts"\."(body|summary)"|"tags"\."description"})
+      }.should query(%r{"posts"\."(body|summary)"}, %r{"tags"\."description"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
     # can't test for a scope for the same reason

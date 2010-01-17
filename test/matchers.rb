@@ -1,6 +1,7 @@
 module MatchyMatchers
   # Ported from an RSpec matcher
-  # See https://rspec.lighthouseapp.com/projects/5645/tickets/896-lambda-should-query-matcher
+  # from https://rspec.lighthouseapp.com/projects/5645/tickets/896-lambda-should-query-matcher
+  # with a few tweaks
   class ArQuery #:nodoc:
     cattr_accessor :executed
 
@@ -25,10 +26,13 @@ module MatchyMatchers
 
       if @expected.is_a?(Fixnum)
         @actual = ArQuery.executed.length
-        @matched = @actual == @expected
+        @matched = (@actual == @expected)
       else
-        @actual = ArQuery.executed.detect { |sql| @expected === sql }
-        @matched = !@actual.nil?
+        # assume that a block was not given
+        # PATCH: accept multiple queries
+        @expected = Array(@expected)
+        @actual = @expected.map {|query| [query, ArQuery.executed.detect {|sql| query === sql }] }
+        @matched = @actual.all? {|e,a| a }
       end
 
       eval_block if @block && @matched && !negative_expectation?
@@ -53,7 +57,7 @@ module MatchyMatchers
     def eval_block
       @eval_block = true
       begin
-        @block[ArQuery.executed]
+        @block.call(ArQuery.executed)
       rescue Exception => err
         @eval_error = err
       end
@@ -63,11 +67,14 @@ module MatchyMatchers
       if @eval_error
         @eval_error.message
       elsif @expected.is_a?(Fixnum)
-        "expected #{@expected}, got #{@actual}"
+        "expected #{@expected} to be executed, when in fact #{@actual} were"
       else
         # PATCH: better error message
-        msg = "expected a query with pattern #{@expected.inspect} to be executed, but it wasn't.\n"
-        msg << "Queries executed:\n"
+        msg = ""
+        @actual.select {|e,a| !a }.each do |expected, _|
+          msg << "expected a query with pattern #{expected.inspect} to be executed, but it wasn't\n"
+        end
+        msg << "All queries executed:\n"
         ArQuery.executed.each do |query|
           msg << " - #{query}\n"
         end
@@ -77,10 +84,18 @@ module MatchyMatchers
 
     def failure_message_for_should_not
       if @expected.is_a?(Fixnum)
-        "did not expect #{@expected}"
+        "did not expect #{@expected} queries to be executed, but they were"
       else
         # PATCH: better error message
-        "did not expect a query with pattern #{@expected.inspect} to be executed, but it was executed"
+        msg = ""
+        @actual.select {|e,a| a }.each do |_, actual|
+          msg << "expected a query with pattern #{actual.inspect} not to be executed, but it was\n"
+        end
+        msg << "All queries executed:\n"
+        ArQuery.executed.each do |query|
+          msg << " - #{query}\n"
+        end
+        msg
       end
     end
 

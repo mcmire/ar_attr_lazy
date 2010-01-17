@@ -41,6 +41,16 @@ ActiveRecord::Migration.suppress_messages do
       t.integer :post_id, :null => false
       t.integer :tag_id, :null => false
     end
+    
+    create_table :categories, :force => true do |t|
+      t.string :name, :null => false
+      t.text :description
+    end
+    
+    create_table :post_categories, :force => true do |t|
+      t.integer :post_id, :null => false
+      t.integer :category_id, :null => false
+    end
   end
 end
 
@@ -61,6 +71,15 @@ class Post < ActiveRecord::Base
   has_many :comments
   has_many :comments_with_default_scope, :class_name => "CommentWithDefaultScope"
   has_many :comments_with_select, :select => "name", :class_name => "Comment"
+  has_many :post_categories
+  has_many :categories, :through => :post_categories
+  has_many :categories_with_default_scope, :through => :post_categories,
+    :class_name => "CategoryWithDefaultScope",
+    :source => :post
+  has_many :categories_with_select, :through => :post_categories,
+    :select => "categories.name",
+    :class_name => "Category",
+    :source => :post
   belongs_to :author, :class_name => "User"
   has_and_belongs_to_many :tags
   has_and_belongs_to_many :tags_with_default_scope,
@@ -96,6 +115,21 @@ class TagWithDefaultScope < ActiveRecord::Base
   default_scope :select => "name"
 end
 
+class PostCategory < ActiveRecord::Base
+  belongs_to :post
+  belongs_to :category
+end
+class Category < ActiveRecord::Base
+  has_many :post_categories
+  has_many :posts, :through => :post_categories
+end
+class CategoryWithDefaultScope < ActiveRecord::Base
+  set_table_name :categories
+  has_many :post_categories
+  has_many :posts, :through => :post_categories
+  default_scope :select => "categories.name"
+end
+
 account = Account.create!(
   :name => "Joe's Account"
 )
@@ -120,3 +154,4 @@ Comment.create!(
   :body => "Your site suxx0rsss"
 )
 post.tags << Tag.new(:name => "foo", :description => "The description and stuff")
+post.categories << Category.new(:name => "zing", :description => "Hey hey hey hey I don't like your girlfriend")

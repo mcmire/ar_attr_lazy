@@ -1,11 +1,12 @@
 require 'helper'
 
 # what about STI? (do the lazy attributes carry over?)
-# what about has_many :through or has_one :through?
+# what about has_one :through?
 
 Protest.context "for a model that has lazy attributes" do
   global_setup do
-    require 'setup_tables_for_using'
+    load File.dirname(__FILE__) + '/setup_tables_for_not_using.rb'
+    load File.dirname(__FILE__) + '/setup_tables_for_using.rb'
   end
   
   global_teardown do

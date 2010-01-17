@@ -8,6 +8,12 @@ ActiveRecord::Migration.suppress_messages do
     create_table :accounts, :force => true do |t|
       t.string :name, :null => false
     end
+    
+    create_table :avatars, :force => true do |t|
+      t.integer :user_id, :null => false
+      t.string :filename, :null => false
+      t.text :data
+    end
 
     create_table :users, :force => true do |t|
       t.integer :account_id, :null => false
@@ -56,13 +62,19 @@ end
 
 class Account < ActiveRecord::Base
   has_one :user
+  has_one :avatar, :through => :user
 end
 class AccountWithDefaultScope < ActiveRecord::Base
   set_table_name :accounts
   default_scope :select => "name"
 end
 
+class Avatar < ActiveRecord::Base
+  belongs_to :user
+end
+
 class User < ActiveRecord::Base
+  has_one :avatar
   has_many :posts, :foreign_key => "author_id"
   belongs_to :account
 end
@@ -140,6 +152,11 @@ user = User.create!(
   :password => "secret",
   :email => "joe@bloe.com",
   :bio => "It's hip to be square!"
+)
+Avatar.create!(
+  :user => user,
+  :filename => "somefile.png",
+  :data => "10101010010010001000101"
 )
 post = Post.create!(
   :author => user,

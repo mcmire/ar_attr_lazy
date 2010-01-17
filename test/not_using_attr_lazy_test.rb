@@ -129,6 +129,18 @@ Protest.context "for a model that doesn't have lazy attributes" do
     end
   end
   
+  # missing: has_many :through
+  
+  context "accessing a has_one :through association" do
+    test "find selects all attributes by default" do
+      account = Account.first
+      lambda { account.avatar }.should query(
+        regex(%|SELECT "avatars".* FROM "avatars"|)
+      )
+    end
+    # can't do a find on a has_one, so no testing needed for that
+  end
+  
   context "eager loading a has_many association (association preloading)" do
     test "find selects all attributes by default" do
       lambda {
@@ -198,6 +210,28 @@ Protest.context "for a model that doesn't have lazy attributes" do
       lambda {
         Post.find(:first, :include => :tags, :conditions => "tags.name = 'foo'")
       }.should query(%r{"posts"\."(body|summary)"}, %r{"tags"\."description"})
+    end
+    # can't test for an explicit select since that clashes with the table join anyway
+    # can't test for a scope for the same reason
+  end
+  
+  # missing: has_many :through
+  
+  context "eager loading a has_one :through association (association preloading)" do
+    test "find selects all attributes by default" do
+      lambda { Account.find(:first, :include => :avatar) }.should query(
+        regex(%|SELECT "avatars".* FROM "avatars"|)
+      )
+    end
+    # can't test for an explicit select since that will force a table join
+    # can't test for a scope select since association preloading doesn't honor those
+  end
+  context "eager loading a has_one :through association (table join)" do
+    test "find selects all attributes by default" do
+      pending "this is failing for some reason!"
+      lambda {
+        Account.find(:first, :include => :avatar, :conditions => "avatars.filename = 'somefile.png'")
+      }.should query(%|SELECT "accounts"."id" AS t0_r0, "accounts"."name" AS t0_r1, "avatars"."id" AS t1_r0, "avatars"."user_id" AS t1_r1, "avatars"."filename" AS t1_r2, "avatars"."data" AS t1_r3 FROM "accounts"|)
     end
     # can't test for an explicit select since that clashes with the table join anyway
     # can't test for a scope for the same reason

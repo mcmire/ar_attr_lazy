@@ -1,3 +1,7 @@
+class Avatar < ActiveRecord::Base
+  attr_lazy :data
+end
+
 class User < ActiveRecord::Base
   attr_lazy :bio
 end

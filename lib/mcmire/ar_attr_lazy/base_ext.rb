@@ -63,3 +63,7 @@ module Mcmire
     end
   end
 end
+
+ActiveRecord::Base.class_eval do
+  extend Mcmire::ArAttrLazy::BaseExt::MacroMethods
+end

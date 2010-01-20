@@ -14,9 +14,9 @@ First:
 
 Then, simply add an `attr_lazy` line to your model, listing the attributes you want lazy-loaded. For instance:
 
-  class Post < ActiveRecord::Base
-    attr_lazy :body
-  end
+    class Post < ActiveRecord::Base
+      attr_lazy :body
+    end
   
 Now when you do a `find`, instead of doing a `SELECT *`, it does e.g. `SELECT id, permalink, title, created_at, updated_at`, and only when you say `post.body` will it pull the `body` column.
 
@@ -28,7 +28,7 @@ You can also [email me](mailto:elliot.winkler@gmail.com), or [find me on Twitter
 
 ## Inspiration
 
-http://refactormycode.com/codes/219-activerecord-lazy-attribute-loading-plugin-for-rails
+<http://refactormycode.com/codes/219-activerecord-lazy-attribute-loading-plugin-for-rails>
 
 ## Author/License
 

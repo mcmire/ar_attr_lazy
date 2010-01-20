@@ -17,3 +17,7 @@ module Mcmire
     end
   end
 end
+
+ActiveRecord::Associations::HasAndBelongsToManyAssociation.class_eval do
+  include Mcmire::ArAttrLazy::HabtmExt
+end

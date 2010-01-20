@@ -25,3 +25,31 @@ module Mcmire
     end
   end
 end
+
+ActiveRecord::AssociationPreload::ClassMethods.class_eval do
+  include Mcmire::ArAttrLazy::AssociationPreloadExt
+  
+  # Unfortunately we can't override this using a module...
+  def preload_has_and_belongs_to_many_association(records, reflection, preload_options={})
+    table_name = reflection.klass.quoted_table_name
+    id_to_record_map, ids = construct_id_map(records)
+    records.each {|record| record.send(reflection.name).loaded}
+    options = reflection.options
+
+    conditions = "t0.#{reflection.primary_key_name} #{in_or_equals_for_ids(ids)}"
+    conditions << append_conditions(reflection, preload_options)
+
+    associated_records = reflection.klass.with_exclusive_scope do
+      # Select unlazy_column_list by default
+      select = options[:select]
+      select ||= reflection.klass.unlazy_column_list if reflection.klass.respond_to?(:unlazy_column_list)
+      select ||= table_name+'.*'
+      reflection.klass.find(:all, :conditions => [conditions, ids],
+        :include => options[:include],
+        :joins => "INNER JOIN #{connection.quote_table_name options[:join_table]} t0 ON #{reflection.klass.quoted_table_name}.#{reflection.klass.primary_key} = t0.#{reflection.association_foreign_key}",
+        :select => "#{select}, t0.#{reflection.primary_key_name} as the_parent_record_id",
+        :order => options[:order])
+    end
+    set_association_collection_records(id_to_record_map, reflection.name, associated_records, 'the_parent_record_id')
+  end
+end

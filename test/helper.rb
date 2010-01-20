@@ -61,7 +61,7 @@ module Protest
     end
     
     def file_and_line
-      backtrace.find {|x| x =~ %r{^\./test/(.*_test|test_.*)\.rb} }.split(":")[0..1]
+      backtrace.find {|x| x =~ %r{^.*/test/(.*_test|test_.*)\.rb} }.split(":")[0..1]
     end
   end
   

@@ -46,8 +46,10 @@ Protest.context "for a model that doesn't have lazy attributes" do
         end
       }.should query(regex(%|SELECT name FROM "accounts"|))
     end
-    test "find still honors a select option in a default scope" do
-      lambda { AccountWithDefaultScope.find(:first) }.should query(regex(%|SELECT name FROM "accounts"|))
+    if Mcmire::ArAttrLazy.ar_version >= 2.3
+      test "find still honors a select option in a default scope" do
+        lambda { AccountWithDefaultScope.find(:first) }.should query(regex(%|SELECT name FROM "accounts"|))
+      end
     end
   end
   
@@ -72,10 +74,12 @@ Protest.context "for a model that doesn't have lazy attributes" do
         regex(%|SELECT name FROM "comments"|)
       )
     end
-    test "find still honors a select option in a default scope" do
-      lambda { @post.comments_with_default_scope.find(:first) }.should query(
-        regex(%|SELECT name FROM "comments"|)
-      )
+    if Mcmire::ArAttrLazy.ar_version >= 2.3
+      test "find still honors a select option in a default scope" do
+        lambda { @post.comments_with_default_scope.find(:first) }.should query(
+          regex(%|SELECT name FROM "comments"|)
+        )
+      end
     end
     test "find still honors a select option in the association definition itself" do
       lambda { @post.comments_with_select.find(:first) }.should query(
@@ -122,13 +126,15 @@ Protest.context "for a model that doesn't have lazy attributes" do
         regex(%|SELECT tags.name FROM "tags"|)
       )
     end
-    test "find still honors a select option in a default scope" do
-      pending "this fails on Rails 2.3.4"
-      lambda {
-        @post.tags_with_default_scope.find(:all)
-      }.should query(
-        regex(%|SELECT tags.name FROM "tags"|)
-      )
+    if Mcmire::ArAttrLazy.ar_version >= 2.3
+      test "find still honors a select option in a default scope" do
+        pending "this fails on Rails 2.3.4"
+        lambda {
+          @post.tags_with_default_scope.find(:all)
+        }.should query(
+          regex(%|SELECT tags.name FROM "tags"|)
+        )
+      end
     end
     test "find still honors a select option in the association definition itself" do
       lambda {
@@ -163,13 +169,15 @@ Protest.context "for a model that doesn't have lazy attributes" do
         regex(%|SELECT categories.name FROM "categories"|)
       )
     end
-    test "find still honors a select option in a default scope" do
-      pending "this fails on Rails 2.3.4"
-      lambda {
-        @post.categories_with_default_scope.find(:all)
-      }.should query(
-        regex(%|SELECT categories.name FROM "categories"|)
-      )
+    if Mcmire::ArAttrLazy.ar_version >= 2.3
+      test "find still honors a select option in a default scope" do
+        pending "this fails on Rails 2.3.4"
+        lambda {
+          @post.categories_with_default_scope.find(:all)
+        }.should query(
+          regex(%|SELECT categories.name FROM "categories"|)
+        )
+      end
     end
     test "find still honors a select option in the association definition itself" do
       lambda {
@@ -180,14 +188,17 @@ Protest.context "for a model that doesn't have lazy attributes" do
     end
   end
   
-  context "accessing a has_one :through association" do
-    test "find selects all attributes by default" do
-      account = Account.first
-      lambda { account.avatar }.should query(
-        regex(%|SELECT "avatars".* FROM "avatars"|)
-      )
+  # has_one :through didn't work properly prior to 2.3.4 - see LH #2719
+  if Mcmire::ArAttrLazy.ar_version >= "2.3.4"
+    context "accessing a has_one :through association" do
+      test "find selects all attributes by default" do
+        account = Account.first
+        lambda { account.avatar }.should query(
+          regex(%|SELECT "avatars".* FROM "avatars"|)
+        )
+      end
+      # can't do a find on a has_one, so no testing needed for that
     end
-    # can't do a find on a has_one, so no testing needed for that
   end
   
   context "eager loading a has_many association (association preloading)" do
@@ -287,24 +298,27 @@ Protest.context "for a model that doesn't have lazy attributes" do
     # can't test for a scope for the same reason
   end
   
-  context "eager loading a has_one :through association (association preloading)" do
-    test "find selects all attributes by default" do
-      lambda { Account.find(:first, :include => :avatar) }.should query(
-        regex(%|SELECT "avatars".* FROM "avatars"|)
-      )
+  # has_one :through didn't work properly prior to 2.3.4 - see LH #2719
+  if Mcmire::ArAttrLazy.ar_version >= "2.3.4"
+    context "eager loading a has_one :through association (association preloading)" do
+      test "find selects all attributes by default" do
+        lambda { Account.find(:first, :include => :avatar) }.should query(
+          regex(%|SELECT "avatars".* FROM "avatars"|)
+        )
+      end
+      # can't test for an explicit select since that will force a table join
+      # can't test for a scope select since association preloading doesn't honor those
     end
-    # can't test for an explicit select since that will force a table join
-    # can't test for a scope select since association preloading doesn't honor those
-  end
-  context "eager loading a has_one :through association (table join)" do
-    test "find selects all attributes by default" do
-      pending "this is failing for some reason!"
-      lambda {
-        Account.find(:first, :include => :avatar, :order => "avatars.filename")
-      }.should query(%|SELECT "accounts"."id" AS t0_r0, "accounts"."name" AS t0_r1, "avatars"."id" AS t1_r0, "avatars"."user_id" AS t1_r1, "avatars"."filename" AS t1_r2, "avatars"."data" AS t1_r3 FROM "accounts"|)
+    context "eager loading a has_one :through association (table join)" do
+      test "find selects all attributes by default" do
+        pending "this is failing for some reason!"
+        lambda {
+          Account.find(:first, :include => :avatar, :order => "avatars.filename")
+        }.should query(%|SELECT "accounts"."id" AS t0_r0, "accounts"."name" AS t0_r1, "avatars"."id" AS t1_r0, "avatars"."user_id" AS t1_r1, "avatars"."filename" AS t1_r2, "avatars"."data" AS t1_r3 FROM "accounts"|)
+      end
+      # can't test for an explicit select since that clashes with the table join anyway
+      # can't test for a scope for the same reason
     end
-    # can't test for an explicit select since that clashes with the table join anyway
-    # can't test for a scope for the same reason
   end
   
 end

@@ -2,7 +2,11 @@ require 'rubygems'
 
 require 'pp'
 
+if ENV["AR_VERSION"]
+  gem 'activerecord', "= #{ENV["AR_VERSION"]}"
+end
 require 'activerecord'
+require 'active_record/version'
 ActiveRecord::Base.establish_connection(
   "adapter" => "sqlite3",
   "database" => ":memory:"
@@ -17,10 +21,8 @@ require 'mocha'
 require 'mocha-protest-integration'
 
 Protest.report_with :documentation
-Protest::Utils::BacktraceFilter::ESCAPE_PATHS << %r|test/unit| << %r|matchy| << %r|mocha-protest-integration|
-Protest::TestWithErrors.class_eval do
-  alias_method :backtrace, :raw_backtrace
-end
+#Protest::Utils::BacktraceFilter::ESCAPE_PATHS << %r|test/unit| << %r|matchy| << %r|mocha-protest-integration|
+Protest::Utils::BacktraceFilter::ESCAPE_PATHS.clear
 
 #------------------------
 
@@ -49,6 +51,20 @@ module Protest
     end
   end
   
+  module TestWithErrors
+    def file
+      file_and_line[0]
+    end
+    
+    def line
+      file_and_line[1]
+    end
+    
+    def file_and_line
+      backtrace.find {|x| x =~ %r{^\./test/(.*_test|test_.*)\.rb} }.split(":")[0..1]
+    end
+  end
+  
   module Utils
     module Summaries
       def summarize_errors
@@ -60,6 +76,7 @@ module Protest
         pad_indexes = failures_and_errors.size.to_s.size
         failures_and_errors.each_with_index do |error, index|
           colorize_as = ErroredTest === error ? :errored : :failed
+          # PATCH: test.full_name
           puts "  #{pad(index+1, pad_indexes)}) #{test_type(error)} in `#{error.test.full_name}' (on line #{error.line} of `#{error.file}')", colorize_as
           # If error message has line breaks, indent the message
           prefix = "with"

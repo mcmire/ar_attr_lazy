@@ -13,7 +13,9 @@ begin
     gem.email = "elliot.winkler@gmail.com"
     gem.homepage = "http://github.com/mcmire/ar_attr_lazy"
     gem.authors = ["Elliot Winkler"]
-    gem.add_dependency "activerecord", "< 3.0"
+    unless ENV["AR_VERSION"]
+      gem.add_dependency "activerecord", "< 3.0"
+    end
     gem.add_development_dependency "mcmire-protest"
     gem.add_development_dependency "mcmire-matchy"
     gem.add_development_dependency "mcmire-mocha"
@@ -46,7 +48,7 @@ rescue LoadError
   end
 end
 
-task :test => :check_dependencies
+task :test => [:check_dependencies, :"check_dependencies:development"]
 
 task :default => :test
 

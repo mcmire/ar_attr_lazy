@@ -4,12 +4,23 @@ require 'helper'
 
 Protest.context "for a model that doesn't have lazy attributes" do
   global_setup do
+    load File.dirname(__FILE__) + '/setup_migration.rb'
     load File.dirname(__FILE__) + '/setup_tables_for_not_using.rb'
+    Account.make! do |account|
+      User.make!(:account => account) do |user|
+        Avatar.make!(:user => user)
+        Post.make!(:author => user) do |post|
+          Comment.make!(:post => post)
+          post.tags << Tag.make
+          post.categories << Category.make
+        end
+      end
+    end
   end
   
   global_teardown do
-    for model in [:Account, :AccountWithDefaultScope, :User, :Post, :PostWithDefaultScope, :Comment, :CommentWithDefaultScope, :Tag, :TagWithDefaultScope]
-      Object.remove_class(model)
+    ObjectSpace.each_object(Class) do |klass|
+      Object.remove_class(klass) if klass < ActiveRecord::Base
     end
   end
   
@@ -191,7 +202,7 @@ Protest.context "for a model that doesn't have lazy attributes" do
   context "eager loading a has_many association (table join)" do
     test "find selects all attributes by default" do
       lambda {
-        Post.find(:first, :include => :comments, :conditions => "comments.name = 'A douchebag'")
+        Post.find(:first, :include => :comments, :order => "comments.id")
       }.should query(%r{"posts"\."body"}, %r{"comments"\."body"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
@@ -208,7 +219,7 @@ Protest.context "for a model that doesn't have lazy attributes" do
   context "eager loading a has_one association (table join)" do
     test "find selects all attributes by default" do
       lambda {
-        Account.find(:first, :include => :user, :conditions => "users.name = 'Joe Bloe'")
+        Account.find(:first, :include => :user, :order => "users.id")
       }.should query(%r{"users"\."bio"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
@@ -227,7 +238,7 @@ Protest.context "for a model that doesn't have lazy attributes" do
   context "eager loading a belongs_to association (table join)" do
     test "find selects all attributes by default" do
       lambda {
-        Post.find(:first, :include => :author, :conditions => "users.name = 'Joe Bloe'")
+        Post.find(:first, :include => :author, :order => "users.id")
       }.should query(%r{"posts"\."(body|summary)"}, %r{"users"\."bio"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
@@ -246,7 +257,7 @@ Protest.context "for a model that doesn't have lazy attributes" do
   context "eager loading a has_and_belongs_to_many association (table join)" do
     test "find selects all attributes by default" do
       lambda {
-        Post.find(:first, :include => :tags, :conditions => "tags.name = 'foo'")
+        Post.find(:first, :include => :tags, :order => "tags.id")
       }.should query(%r{"posts"\."(body|summary)"}, %r{"tags"\."description"})
     end
     # can't test for an explicit select since that clashes with the table join anyway
@@ -267,9 +278,9 @@ Protest.context "for a model that doesn't have lazy attributes" do
   context "eager loading a has_many :through association (table join)" do
     test "find selects all attributes by default" do
       lambda {
-        Post.find(:first, :include => :categories, :conditions => "categories.name = 'zing'")
+        Post.find(:first, :include => :categories, :order => "categories.id")
       }.should query(
-        regex(%|SELECT "posts"."id" AS t0_r0, "posts"."author_id" AS t0_r1, "posts"."title" AS t0_r2, "posts"."permalink" AS t0_r3, "posts"."body" AS t0_r4, "posts"."summary" AS t0_r5, "categories"."id" AS t1_r0, "categories"."name" AS t1_r1, "categories"."description" AS t1_r2 FROM "posts"|)
+        regex(%|SELECT "posts"."id" AS t0_r0, "posts"."type" AS t0_r1, "posts"."author_id" AS t0_r2, "posts"."title" AS t0_r3, "posts"."permalink" AS t0_r4, "posts"."body" AS t0_r5, "posts"."summary" AS t0_r6, "categories"."id" AS t1_r0, "categories"."type" AS t1_r1, "categories"."name" AS t1_r2, "categories"."description" AS t1_r3 FROM "posts"|)
       )
     end
     # can't test for an explicit select since that clashes with the table join anyway
@@ -289,7 +300,7 @@ Protest.context "for a model that doesn't have lazy attributes" do
     test "find selects all attributes by default" do
       pending "this is failing for some reason!"
       lambda {
-        Account.find(:first, :include => :avatar, :conditions => "avatars.filename = 'somefile.png'")
+        Account.find(:first, :include => :avatar, :order => "avatars.filename")
       }.should query(%|SELECT "accounts"."id" AS t0_r0, "accounts"."name" AS t0_r1, "avatars"."id" AS t1_r0, "avatars"."user_id" AS t1_r1, "avatars"."filename" AS t1_r2, "avatars"."data" AS t1_r3 FROM "accounts"|)
     end
     # can't test for an explicit select since that clashes with the table join anyway

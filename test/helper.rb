@@ -21,18 +21,70 @@ Protest::Utils::BacktraceFilter::ESCAPE_PATHS << %r|test/unit| << %r|matchy| << 
 Protest::TestWithErrors.class_eval do
   alias_method :backtrace, :raw_backtrace
 end
-Protest::TestCase.class_eval do
-  def assert(condition, message="Expected condition to be satisfied")
-    @report.add_assertion
-    unless condition
-      # In Ruby 1.9, the message is templated using a proc (see MiniTest::Assertions#message)
-      # In Ruby 1.8, the message is templated using Test::Unit::Assertions::AssertionMessage
-      message = (Proc === message ? message.call : message).to_s
-      raise Protest::AssertionFailed, message
+
+#------------------------
+
+module Protest
+  class TestCase
+    def full_name
+      self.class.description + " " + self.name
+    end
+    
+    class TestWrapper #:nodoc:
+      attr_reader :name
+
+      def initialize(type, test_case)
+        @type = type
+        @test = test_case
+        @name = "Global #{@type} for #{test_case.description}"
+      end
+
+      def run(report)
+        @test.send("do_global_#{@type}")
+      end
+      
+      def full_name
+        @name
+      end
+    end
+  end
+  
+  module Utils
+    module Summaries
+      def summarize_errors
+        return if failures_and_errors.empty?
+
+        puts "Failures:"
+        puts
+
+        pad_indexes = failures_and_errors.size.to_s.size
+        failures_and_errors.each_with_index do |error, index|
+          colorize_as = ErroredTest === error ? :errored : :failed
+          puts "  #{pad(index+1, pad_indexes)}) #{test_type(error)} in `#{error.test.full_name}' (on line #{error.line} of `#{error.file}')", colorize_as
+          # If error message has line breaks, indent the message
+          prefix = "with"
+          unless error.error.is_a?(Protest::AssertionFailed) ||
+          ((RUBY_VERSION =~ /^1\.9/) ? error.error.is_a?(MiniTest::Assertion) : error.error.is_a?(::Test::Unit::AssertionFailedError))
+            prefix << " #{error.error.class}" 
+          end
+          if error.error_message =~ /\n/
+            puts indent("#{prefix}: <<", 6 + pad_indexes), colorize_as
+            puts indent(error.error_message, 6 + pad_indexes + 2), colorize_as
+            puts indent(">>", 6 + pad_indexes), colorize_as
+          else
+            puts indent("#{prefix} `#{error.error_message}'", 6 + pad_indexes), colorize_as
+          end
+          indent(error.backtrace, 6 + pad_indexes).each {|backtrace| puts backtrace, colorize_as }
+          puts
+        end
+      end
     end
   end
 end
 
+#------------------------
+
 require 'matchers'
+require 'factories'
 
 require 'mcmire/ar_attr_lazy'

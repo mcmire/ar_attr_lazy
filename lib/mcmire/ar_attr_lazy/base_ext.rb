@@ -2,10 +2,6 @@ module Mcmire
   module ArAttrLazy
     module BaseExt
       module ClassMethods
-        def attr_lazy_columns
-          @attr_lazy_columns ||= []
-        end
-
         def unlazy_column_names
           column_names - attr_lazy_columns
         end
@@ -50,13 +46,15 @@ module Mcmire
         def attr_lazy(*args)
           include InstanceMethods
           extend ClassMethods
-          class << self
+          class_inheritable_accessor :attr_lazy_columns
+          write_inheritable_attribute :attr_lazy_columns, []
+          (class << self; self; end).class_eval do
             alias_method_chain :find, :attr_lazy
           end
           
           args = [args].flatten.map(&:to_s)
           new_cols = args - (attr_lazy_columns & args)
-          @attr_lazy_columns |= args
+          write_inheritable_attribute(:attr_lazy_columns, attr_lazy_columns | args)
           new_cols.each do |col|
             class_eval("def #{col}; read_lazy_attribute :#{col}; end", __FILE__, __LINE__)
           end
